@@ -1,0 +1,239 @@
+# Sazwan Digital Portal
+
+Based on the screenshot content you provided, I'll create a professional landing page that includes all the elements mentioned while keeping the original names unchanged.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sazwan Digital</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #f1f5f9;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 40px 0;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            font-size: 2.8rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .tagline {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 50px;
+        }
+        
+        .card {
+            background: rgba(30, 41, 59, 0.7);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+            background: rgba(30, 41, 59, 0.9);
+        }
+        
+        .card i {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            color: #60a5fa;
+        }
+        
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #e2e8f0;
+        }
+        
+        .card p {
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+        
+        .highlight {
+            background: linear-gradient(135deg, #1e40af, #7c3aed);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .highlight::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 40px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo {
+                font-size: 2.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="logo">Sazwan Solutions</h1>
+            <p class="tagline">Digital Innovation & Technology Services</p>
+        </header>
+        
+        <div class="main-grid">
+            <div class="card">
+                <i class="fas fa-paint-brush"></i>
+                <h3>Sazwan Hobby Shop</h3>
+                <p>Creative supplies and hobby materials for enthusiasts</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-robot"></i>
+                <h3>End Al Global</h3>
+                <p>Advanced AI solutions and global technology integration</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-brain"></i>
+                <h3>Mastermind C10</h3>
+                <p>Strategic consulting and innovative problem solving</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-server"></i>
+                <h3>Fairbase</h3>
+                <p>Secure database solutions and backend infrastructure</p>
+            </div>
+            
+            <div class="card highlight">
+                <i class="fas fa-laptop-code"></i>
+                <h3>Sazwan Digital</h3>
+                <p>Comprehensive digital solutions and technology services</p>
+            </div>
+            
+            <div class="card highlight">
+                <i class="fas fa-broadcast-tower"></i>
+                <h3>Sazwan Digital Echo</h3>
+                <p>Digital communication and networking solutions</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-gem"></i>
+                <h3>Sazwan Gemma</h3>
+                <p>Premium services and exclusive offerings</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-hands-helping"></i>
+                <h3>My Copilot</h3>
+                <p>Personalized assistance and guidance services</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-building"></i>
+                <h3>MSI Enterprise</h3>
+                <p>Corporate solutions and business services</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-map-marked-alt"></i>
+                <h3>Google Maps</h3>
+                <p>Location services and mapping solutions</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-chart-line"></i>
+                <h3>Google Financial</h3>
+                <p>Financial analytics and market insights</p>
+            </div>
+            
+            <div class="card">
+                <i class="fas fa-credit-card"></i>
+                <h3>Visa</h3>
+                <p>Payment solutions and financial services</p>
+            </div>
+            
+            <div class="card">
+                <i class="fab fa-bitcoin"></i>
+                <h3>Bitcoin</h3>
+                <p>Cryptocurrency and blockchain technology</p>
+            </div>
+        </div>
+        
+        <footer class="footer">
+            <p>© 2025 MUHAMAD SAZWAN BIN ISMAIL. ALL RIGHTS RESERVED</p>
+        </footer>
+    </div>
+</body>
+</html>
+```
+
+## Features of this implementation:
+
+1. **Professional Design**: Modern gradient background with card-based layout
+2. **All Original Names Preserved**: Every item from your screenshot is included exactly as named
+3. **Visual Hierarchy**: "Sazwan Digital" and "Sazwan Digital Echo" are highlighted with special styling
+4. **Responsive Layout**: Works well on both desktop and mobile devices
+5. **Interactive Elements**: Cards have hover effects for better user engagement
+6. **Consistent Styling**: Professional color scheme with appropriate icons for each service
+
+The design maintains a professional tech-focused appearance while ensuring all your original business names remain unchanged as requested.
