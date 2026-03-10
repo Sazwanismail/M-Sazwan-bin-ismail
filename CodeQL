@@ -1,0 +1,395 @@
+This is an advanced guide to CodeQL, the semantic code analysis engine that powers GitHub code scanning. It focuses on extending CodeQL beyond its default configuration, covering custom workflow setup, writing your own queries, and understanding recent performance enhancements.
+
+### 🔩 Advanced Workflow Customization
+
+To tailor CodeQL analysis to your project's specific needs, you can move beyond basic setup and use a custom configuration file. This file, often named `codeql-config.yml` and stored in your repository (e.g., `.github/codeql/codeql-config.yml`), provides granular control over the analysis .
+
+The table below summarizes the key elements you can control in a custom configuration file.
+
+| **Configuration Element** | **Purpose** | **Example Usage** |
+| :--- | :--- | :--- |
+| **Referencing the Config File** | Point your workflow to the custom config. | In `codeql.yml`: `config-file: ./.github/codeql/codeql-config.yml`  |
+| **Specifying Query Packs** | Run additional packs (official or custom). | `packs: - scope/pack-name@~1.2.3` (supports version ranges)  |
+| **Adding Custom Queries** | Run specific `.ql` files or directories. | `queries: - uses: ./path/to/my-query.ql`  |
+| **Controlling Default Queries** | Disable default packs to run only custom ones. | `disable-default-queries: true`  |
+| **Filtering Results** | Include or exclude alerts based on query metadata. | `query-filters: - exclude: { id: js/redundant-assignment }`  |
+| **Limiting Scope** | Scan only specific directories (for interpreted languages). | `paths: - src` and `paths-ignore: - '**/*.test.js'`  |
+
+### ✍️ Writing Advanced Custom Queries
+
+The real power of CodeQL lies in writing your own queries to find vulnerabilities unique to your codebase. This involves understanding the QL language and CodeQL's core libraries for data flow analysis .
+
+#### Query Structure and Metadata
+A custom query file (`.ql`) has two main parts: metadata and the logical query body .
+```ql
+/**
+ * @name Unsafe use of strcpy
+ * @description Detects calls to the unsafe function strcpy.
+ * @kind problem
+ * @problem.severity error
+ * @precision high
+ * @tags security
+ * @security-severity 7.5
+ */
+
+import cpp
+
+from FunctionCall call
+where call.getTarget().getName() = "strcpy"
+select call, "Avoid using the unsafe function strcpy."
+```
+
+#### Implementing Global Taint Tracking
+For complex vulnerabilities involving data flowing from a user input (**source**) to a sensitive function (**sink**), you need global taint tracking. This is done by defining a configuration class .
+```ql
+import cpp
+import semmle.code.cpp.dataflow.new.TaintTracking
+
+module MyTaintConfig implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node source) {
+    // Define source: e.g., result of a 'getenv' call
+    exists(FunctionCall fc |
+      source.asIndirectExpr(1) = fc and
+      fc.getTarget().hasGlobalName("getenv")
+    )
+  }
+
+  predicate isSink(DataFlow::Node sink) {
+    // Define sink: e.g., first argument to 'fopen'
+    exists(FunctionCall fc |
+      sink.asIndirectExpr(1) = fc.getArgument(0) and
+      fc.getTarget().hasGlobalName("fopen")
+    )
+  }
+}
+
+module MyTaint = TaintTracking::Global<MyTaintConfig>;
+
+from DataFlow::Node source, DataFlow::Node sink
+where MyTaint::flow(source, sink)
+select sink, "This fopen uses data from $@.", source, "a getenv call"
+```
+
+### ⚡️ Optimizing Analysis Performance
+
+Recent updates have significantly improved CodeQL's speed and language support, making it more efficient for large codebases.
+
+*   **Incremental Analysis for All Languages**: CodeQL now performs incremental analysis for all supported languages (C#, C/C++, Go, Swift, Java, Kotlin, JavaScript/TypeScript, Python, Ruby). On pull requests, it only analyzes the new or changed code, leading to faster feedback. Initial results show evaluations for Go are roughly **20% faster**, and some scans can be over **40% faster** .
+*   **Easier C/C++ Scanning**: The `build-mode: none` option for C/C++ is now generally available. This allows you to scan projects without a full build, which is especially useful for codebases that are difficult or time-consuming to compile .
+*   **Expanded Rust Support**: CodeQL's Rust support continues to mature. New queries, such as `rust/insecure-cookie`, help detect security issues like cookies transmitted without the `Secure` attribute .
+
+### 🛡️ Governance and Pull Request Integration
+
+To ensure new vulnerabilities are not merged, integrate CodeQL results into your branch protection rules .
+1.  **Require Status Checks**: In your repository settings, set the CodeQL workflow as a required check. This prevents merging if the analysis fails or is not completed.
+2.  **Require Code Scanning Results**: More granularly, you can require that no new alerts of a specific severity (e.g., `High` or higher) are introduced. This forces developers to address critical findings before a pull request can be merged.
+
+I hope this advanced guide provides you with the tools to leverage CodeQL to its full potential. If you have a specific vulnerability pattern in mind or need help adapting these examples to a particular language, feel free to ask.
+# CodeQL Advanced: Beyond the Basics
+
+This guide continues from the previous advanced overview, diving deeper into sophisticated query writing, performance optimization, customizing analysis for complex codebases, and integrating CodeQL into enterprise workflows.
+
+---
+
+## 🔍 **Deep Dive into Taint Tracking**
+
+Taint tracking is CodeQL's most powerful feature for finding security vulnerabilities where user-controlled data flows unsafely. Understanding its components lets you model complex scenarios.
+
+### **Anatomy of a Taint Tracking Configuration**
+
+A taint tracking configuration defines four main elements:
+
+| Component | Purpose | Example |
+|-----------|---------|---------|
+| **`isSource`** | Where taint begins (e.g., user input) | HTTP request parameters, environment variables |
+| **`isSink`** | Where taint must not reach (e.g., dangerous function) | `eval`, `exec`, SQL query construction |
+| **`isSanitizer`** | Where taint is neutralized (e.g., escaping, validation) | Input validation, encoding functions |
+| **`isAdditionalFlowStep`** | Propagate taint through non-standard data flow | Through custom getters/setters, maps |
+
+### **Advanced Taint Tracking Example: Command Injection**
+
+Here’s a complete example for detecting command injection in a JavaScript/TypeScript project, including sanitizers.
+
+```ql
+/**
+ * @name Command injection
+ * @kind path-problem
+ * @id js/command-injection
+ */
+import javascript
+
+module CommandInjectionConfig implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node source) {
+    source instanceof RemoteFlowSource
+  }
+
+  predicate isSink(DataFlow::Node sink) {
+    exists(DataFlow::InvokeNode invk |
+      invk.getCalleeName() = "exec" and
+      sink = invk.getArgument(0)
+    )
+  }
+
+  predicate isSanitizer(DataFlow::Node sanitizer) {
+    // Assume functions named escape or validate are sanitizers
+    exists(Function f | f = sanitizer.asExpr().(CallExpr).getCallee().(VarAccess).getDeclaration() |
+      f.getName().matches(["%escape%", "%validate%", "sanitize"])
+    )
+    or
+    // Constant string (hardcoded) is safe
+    sanitizer.asExpr().(ConstantString) instanceof ConstantString
+  }
+}
+
+module Flow = TaintTracking::Global<CommandInjectionConfig>;
+
+import Flow::PathGraph
+
+from Flow::PathNode source, Flow::PathNode sink
+where Flow::flowPath(source, sink)
+select sink.getNode(), source, sink, "Command injection from $@.",
+  source.getNode(), "user input"
+```
+
+### **Modeling Custom Data Flow Steps**
+
+Sometimes taint flows through custom library functions not modeled by default. Use `isAdditionalFlowStep` to extend the analysis.
+
+```ql
+predicate isAdditionalFlowStep(DataFlow::Node pred, DataFlow::Node succ) {
+  // Flow through a property assignment: obj.prop = tainted
+  exists(PropWrite p |
+    pred.asExpr() = p.getRhs() and
+    succ.asExpr() = p.getBase().getAPropertyRead(p.getPropertyName())
+  )
+  or
+  // Flow through a function that returns its argument (e.g., identity)
+  exists(FunctionCall fc, Function f |
+    f = fc.getCallee().(VarAccess).getDeclaration() and
+    f.hasName("identity") and
+    pred.asExpr() = fc.getArgument(0) and
+    succ.asExpr() = fc
+  )
+}
+```
+
+---
+
+## 📦 **Using Model Packs to Extend Analysis**
+
+Model packs allow you to add data flow models for external libraries without modifying core CodeQL libraries. This is especially useful for custom frameworks or private dependencies.
+
+### **Creating a Model Pack**
+
+1. **Create a folder structure**:
+   ```
+   my-model-pack/
+   ├── qlpack.yml
+   └── models/
+       └── mylib.model.yml
+   ```
+
+2. **`qlpack.yml`**:
+   ```yaml
+   name: my-org/my-model-pack
+   version: 0.0.1
+   library: true
+   dependencies:
+     codeql/javascript-all: ^0.8.0
+   ```
+
+3. **`models/mylib.model.yml`** – Model file for a fictional templating library:
+   ```yaml
+   extensions:
+     - addsTo:
+         pack: codeql/javascript-all
+         extensible: sourceModel
+       data:
+         - ["mylib", "Member[getUserInput].ReturnValue", "remote"]
+   
+     - addsTo:
+         pack: codeql/javascript-all
+         extensible: sinkModel
+       data:
+         - ["mylib", "Member[render].Argument[0]", "template-injection"]
+   ```
+
+### **Using a Model Pack in Analysis**
+
+Reference the pack in your custom configuration or CLI:
+```yaml
+packs:
+  - my-org/my-model-pack@~0.0.1
+```
+
+Model packs can be published to the GitHub Package registry or used locally, enabling teams to share analysis knowledge.
+
+---
+
+## 🔄 **Variant Analysis with the CodeQL CLI**
+
+Variant analysis allows you to run the same query across many codebases (e.g., all repositories in an organization) to find recurring vulnerabilities.
+
+### **Workflow:**
+1. **Create a CodeQL database** for each repository:
+   ```bash
+   codeql database create /path/to/db --language=javascript --source-root=/path/to/repo
+   ```
+
+2. **Run a query** across multiple databases:
+   ```bash
+   codeql database run-queries /path/to/dbs --search-path=./my-queries --output=results.sarif
+   ```
+
+3. **Aggregate results** and triage.
+
+### **Automating with GitHub Actions Matrix**
+
+You can use a matrix strategy to analyze multiple repositories in parallel:
+```yaml
+strategy:
+  matrix:
+    repo: [repo1, repo2, repo3]
+steps:
+  - name: Checkout ${{ matrix.repo }}
+    uses: actions/checkout@v4
+    with:
+      repository: my-org/${{ matrix.repo }}
+  - name: CodeQL Init
+    uses: github/codeql-action/init@v3
+    with:
+      languages: javascript
+      queries: security-extended
+  - name: Perform Analysis
+    uses: github/codeql-action/analyze@v3
+    with:
+      output: ../results/${{ matrix.repo }}.sarif
+```
+
+---
+
+## ⚡ **Performance Optimization Techniques**
+
+When writing custom queries, performance matters, especially on large codebases. Here are key strategies:
+
+| Technique | Why It Helps | Example |
+|-----------|--------------|---------|
+| **Use `exists` with early bounds** | Reduces search space | `exists(Function f \| f.getName() = "foo" and f.getNumParameter() = 2)` |
+| **Avoid Cartesian products** | Prevent combinatorial explosion | Bind variables early, use `where` clauses effectively |
+| **Use `not exists` instead of `forall` when possible** | More efficient negation | `not exists(..)` |
+| **Prefer `instanceof` over recursion** | Recursion can be expensive | Use built-in transitive closure `*` for reachability |
+| **Leverage cached computations** | Reuse results across queries | Write predicates that compute once and are used many times |
+
+### **Example: Optimizing a Recursive Reachability Query**
+
+Instead of hand‑written recursion:
+```ql
+predicate reaches(Element e, Element f) {
+  f = e.getAChild() or
+  exists(Element mid | reaches(e, mid) and reaches(mid, f))
+}
+```
+Use transitive closure built‑in:
+```ql
+predicate reaches(Element e, Element f) {
+  f = e.getAChild*()
+}
+```
+The `*` operator is heavily optimized by the CodeQL engine.
+
+---
+
+## 🧪 **Customizing CodeQL for Security Teams**
+
+Security teams often need to generate reports, track metrics, or integrate with ticketing systems. Here’s how to extend CodeQL for such needs.
+
+### **Exporting Results to Custom Formats**
+
+Use the CodeQL CLI to convert SARIF to other formats using jq or custom scripts:
+```bash
+codeql database analyze --format=sarif-latest --output=results.sarif
+jq -r '.runs[].results[] | "\(.ruleId): \(.message.text)"' results.sarif > summary.txt
+```
+
+### **Automated PR Comments with Custom Queries**
+
+You can create a GitHub Action that posts a comment when a specific custom query finds an issue:
+
+```yaml
+- name: Run custom query
+  id: codeql
+  uses: github/codeql-action/analyze@v3
+  with:
+    category: custom
+    output: custom-results.sarif
+- name: Parse results and comment
+  if: steps.codeql.outputs.sarif-output
+  run: |
+    if grep -q '"ruleId": "my/custom-rule"' custom-results.sarif; then
+      gh pr comment $PR_NUMBER --body "⚠️ Custom rule 'my/custom-rule' triggered. Please review."
+    fi
+```
+
+---
+
+## 🔐 **Security Lab Queries and Bounty Programs**
+
+GitHub Security Lab maintains a set of high‑quality queries that are accepted into the standard suite. Studying them provides excellent examples of advanced query writing.
+
+### **Key Takeaways from Security Lab Queries:**
+- **Focus on real‑world vulnerabilities** – queries are based on CVEs and actual exploits.
+- **High precision** – low false‑positive rate through careful modeling.
+- **Well‑documented** – each query includes a description, example, and remediation advice.
+- **Use of advanced data flow** – many queries involve taint tracking through complex frameworks.
+
+### **Submitting Your Own Queries to the Bounty Program**
+If you discover a new vulnerability pattern, you can submit a query to GitHub Security Lab for a bounty. Requirements:
+- The query must detect a previously unmodeled vulnerability class.
+- It must have high precision (few false positives).
+- It must include tests and documentation.
+
+---
+
+## 📊 **CodeQL Query Metadata for Governance**
+
+Use query metadata to categorize and prioritize findings. Metadata can be used in dashboards or CI decisions.
+
+```ql
+/**
+ * @name SQL injection in string concatenation
+ * @id java/sql-injection-concat
+ * @description Building SQL queries with string concatenation is vulnerable.
+ * @kind path-problem
+ * @problem.severity error
+ * @precision high
+ * @tags security
+ * @security-severity 8.2
+ * @cwe id="89", name="SQL Injection"
+ */
+```
+
+You can then filter results by severity or CWE in your CI pipeline:
+```yaml
+- name: Filter results
+  run: |
+    jq '.runs[].results[] | select(.properties."security-severity" > 7.0)' results.sarif
+```
+
+---
+
+## ✅ **Summary of Advanced CodeQL Techniques**
+
+| Technique | Use Case | Key Benefit |
+|-----------|----------|-------------|
+| **Custom taint tracking** | Find complex injection flaws | Models data flow through custom code |
+| **Model packs** | Analyze external libraries | Shareable, reusable models |
+| **Variant analysis** | Scan multiple codebases | Find patterns across org |
+| **Performance tuning** | Speed up queries | Enable scanning of huge codebases |
+| **Custom reporting** | Integrate with workflows | Actionable, prioritized alerts |
+| **Security Lab queries** | Learn from best-in-class examples | Improve query quality |
+
+---
+
+By mastering these advanced CodeQL features, you can build a robust, tailored security analysis pipeline that catches vulnerabilities early and scales with your development velocity.
+
+For further exploration, refer to the [CodeQL documentation](https://codeql.github.com/docs/) and the [GitHub Security Lab](https://securitylab.github.com/).
